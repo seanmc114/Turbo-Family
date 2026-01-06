@@ -1,16 +1,9 @@
-// TURBO · Family (EN → ES) · FAMILY_FINAL1
-// Modes: Classic, Survival (1 mistake = fail), Sprint (60s cap), Team Relay
-// Same Match Code => same 10 prompts across devices.
-// Short Result Code (teacher-friendly).
-//
-// Rules preserved:
-// - 10 prompts per round
-// - +30s per wrong/blank
-// - unlock thresholds 200→40
-// - best saved per (mode, level)
-// - global ES reads tokens cap 7 (commit-on-finish), +1 token on perfect
-//
-// Accents required; capitals ignored; ñ counts as n.
+// TURBO · Family (EN → ES) · FAMILY_BRIGHT1
+// Full working script — Classic / Survival / Sprint / Team Relay
+// +30s per wrong/blank, same-10 prompts via Match Code, short Result Code, compare tool.
+
+// Boot flag so index.html can detect if JS ran
+window.__TURBO_FAMILY_BOOTED = true;
 
 (() => {
   const $  = sel => document.querySelector(sel);
@@ -23,10 +16,9 @@
   const BASE_THRESH = { 1:200, 2:180, 3:160, 4:140, 5:120, 6:100, 7:80, 8:60, 9:40 };
 
   const GLOBAL_READS_MAX = 7;
-  const GLOBAL_READS_KEY = "turboFamily:globalReads:FAMILY_FINAL1";
+  const GLOBAL_READS_KEY = "turboFamily:globalReads:FAMILY_BRIGHT1";
 
-  const STORAGE_PREFIX = "turboFamily:FAMILY_FINAL1";
-  const bestKey = (mode, lvl) => `${STORAGE_PREFIX}:best:${canonMode(mode)}:L${lvl}`;
+  const STORAGE_PREFIX = "turboFamily:FAMILY_BRIGHT1";
 
   function canonMode(m){
     const x = (m || "").toLowerCase();
@@ -43,185 +35,172 @@
     team: "Team Relay"
   };
 
-  // ===================== DATASET (Levels 1–10) =====================
-  // NOTE: Answers list can include multiple acceptable variants (e.g. with/without article).
+  const bestKey = (mode, lvl) => `${STORAGE_PREFIX}:best:${canonMode(mode)}:L${lvl}`;
+
+  function setModeRulesBanner(modeCanon){
+    const el = $("#modeRules");
+    if (!el) return;
+
+    const m = canonMode(modeCanon);
+    const msg = {
+      classic: `Classic: answer 10 prompts as fast as you can. +${PENALTY_PER_WRONG}s per wrong/blank.`,
+      survival: `Survival: any wrong/blank = fail (still shows feedback). Use Match Code for sudden-death head-to-head.`,
+      sprint: `Sprint: 60s cap. Auto-submits at 60s. Winner = most correct → fewest wrong → lowest score.`,
+      team: `Team Relay: pass the device. Each question is assigned Player 1…N (cycling).`
+    }[m] || "";
+
+    el.textContent = msg;
+  }
+
+  // ===================== FAMILY DATASET (Levels 1–10) =====================
+  // You can swap/expand these without changing any logic.
   const FAMILY = {
     1: [
-      { en: "mother", answers: ["madre"] },
-      { en: "father", answers: ["padre"] },
-      { en: "brother", answers: ["hermano"] },
-      { en: "sister", answers: ["hermana"] },
-      { en: "son", answers: ["hijo"] },
-      { en: "daughter", answers: ["hija"] },
-      { en: "parents", answers: ["padres", "los padres"] },
-      { en: "children", answers: ["hijos", "los hijos"] },
-      { en: "family", answers: ["familia"] },
-      { en: "husband", answers: ["marido", "esposo"] },
-      { en: "wife", answers: ["esposa", "mujer"] },
-      { en: "my mother", answers: ["mi madre"] },
-      { en: "my father", answers: ["mi padre"] },
-      { en: "my family", answers: ["mi familia"] },
-      { en: "my parents", answers: ["mis padres"] }
+      { en:"mother", answers:["madre","mamá"] },
+      { en:"father", answers:["padre","papá"] },
+      { en:"brother", answers:["hermano"] },
+      { en:"sister", answers:["hermana"] },
+      { en:"parents", answers:["padres"] },
+      { en:"family", answers:["familia"] },
+      { en:"son", answers:["hijo"] },
+      { en:"daughter", answers:["hija"] },
+      { en:"children", answers:["hijos"] },
+      { en:"grandmother", answers:["abuela"] },
+      { en:"grandfather", answers:["abuelo"] },
+      { en:"grandparents", answers:["abuelos"] }
     ],
     2: [
-      { en: "grandfather", answers: ["abuelo"] },
-      { en: "grandmother", answers: ["abuela"] },
-      { en: "grandparents", answers: ["abuelos", "los abuelos"] },
-      { en: "uncle", answers: ["tío"] },
-      { en: "aunt", answers: ["tía"] },
-      { en: "cousin (male)", answers: ["primo"] },
-      { en: "cousin (female)", answers: ["prima"] },
-      { en: "siblings", answers: ["hermanos", "los hermanos"] },
-      { en: "relative", answers: ["pariente", "familiar"] },
-      { en: "nephew", answers: ["sobrino"] },
-      { en: "niece", answers: ["sobrina"] },
-      { en: "my uncle", answers: ["mi tío"] },
-      { en: "my aunt", answers: ["mi tía"] },
-      { en: "my cousins", answers: ["mis primos"] },
-      { en: "my grandparents", answers: ["mis abuelos"] }
+      { en:"uncle", answers:["tío"] },
+      { en:"aunt", answers:["tía"] },
+      { en:"cousin (male)", answers:["primo"] },
+      { en:"cousin (female)", answers:["prima"] },
+      { en:"nephew", answers:["sobrino"] },
+      { en:"niece", answers:["sobrina"] },
+      { en:"husband", answers:["marido","esposo"] },
+      { en:"wife", answers:["mujer","esposa"] },
+      { en:"couple", answers:["pareja"] },
+      { en:"relative", answers:["pariente","familiar"] },
+      { en:"stepfather", answers:["padrastro"] },
+      { en:"stepmother", answers:["madrastra"] }
     ],
     3: [
-      { en: "stepfather", answers: ["padrastro"] },
-      { en: "stepmother", answers: ["madrastra"] },
-      { en: "stepson", answers: ["hijastro"] },
-      { en: "stepdaughter", answers: ["hijastra"] },
-      { en: "half-brother", answers: ["medio hermano"] },
-      { en: "half-sister", answers: ["media hermana"] },
-      { en: "fiancé", answers: ["prometido"] },
-      { en: "fiancée", answers: ["prometida"] },
-      { en: "partner (romantic)", answers: ["pareja"] },
-      { en: "single (relationship status)", answers: ["soltero", "soltera"] },
-      { en: "engaged", answers: ["comprometido", "comprometida"] },
-      { en: "widower", answers: ["viudo"] },
-      { en: "widow", answers: ["viuda"] },
-      { en: "divorced (m)", answers: ["divorciado"] },
-      { en: "divorced (f)", answers: ["divorciada"] }
+      { en:"stepson", answers:["hijastro"] },
+      { en:"stepdaughter", answers:["hijastra"] },
+      { en:"half-brother", answers:["medio hermano","hermanastro"] },
+      { en:"half-sister", answers:["media hermana","hermanastra"] },
+      { en:"only child", answers:["hijo único","hija única"] },
+      { en:"twins", answers:["gemelos"] },
+      { en:"single-parent family", answers:["familia monoparental"] },
+      { en:"to get married", answers:["casarse"] },
+      { en:"wedding", answers:["boda"] },
+      { en:"divorce", answers:["divorcio"] },
+      { en:"to separate", answers:["separarse"] },
+      { en:"to live together", answers:["vivir juntos","convivir"] }
     ],
     4: [
-      { en: "father-in-law", answers: ["suegro"] },
-      { en: "mother-in-law", answers: ["suegra"] },
-      { en: "parents-in-law", answers: ["suegros", "los suegros"] },
-      { en: "brother-in-law", answers: ["cuñado"] },
-      { en: "sister-in-law", answers: ["cuñada"] },
-      { en: "son-in-law", answers: ["yerno"] },
-      { en: "daughter-in-law", answers: ["nuera"] },
-      { en: "godfather", answers: ["padrino"] },
-      { en: "godmother", answers: ["madrina"] },
-      { en: "godson", answers: ["ahijado"] },
-      { en: "goddaughter", answers: ["ahijada"] },
-      { en: "my partner", answers: ["mi pareja"] },
-      { en: "my husband", answers: ["mi marido", "mi esposo"] },
-      { en: "my wife", answers: ["mi esposa"] },
-      { en: "my in-laws", answers: ["mis suegros"] }
+      { en:"to raise (children)", answers:["criar","educar"] },
+      { en:"to bring up", answers:["criar","educar"] },
+      { en:"to look after", answers:["cuidar"] },
+      { en:"to support (a family)", answers:["mantener"] },
+      { en:"household chores", answers:["tareas domésticas"] },
+      { en:"to share chores", answers:["repartir las tareas","compartir las tareas"] },
+      { en:"to argue", answers:["discutir"] },
+      { en:"to get along", answers:["llevarse bien"] },
+      { en:"to fall out", answers:["llevarse mal"] },
+      { en:"relationship", answers:["relación"] },
+      { en:"to meet (someone)", answers:["conocer"] },
+      { en:"to date", answers:["salir con"] }
     ],
     5: [
-      { en: "grandson", answers: ["nieto"] },
-      { en: "granddaughter", answers: ["nieta"] },
-      { en: "great-grandfather", answers: ["bisabuelo"] },
-      { en: "great-grandmother", answers: ["bisabuela"] },
-      { en: "great-grandparents", answers: ["bisabuelos", "los bisabuelos"] },
-      { en: "twin (male)", answers: ["gemelo"] },
-      { en: "twin (female)", answers: ["gemela"] },
-      { en: "twins", answers: ["gemelos"] },
-      { en: "only child", answers: ["hijo único", "hija única"] },
-      { en: "triplets", answers: ["trillizos"] },
-      { en: "my grandson", answers: ["mi nieto"] },
-      { en: "my granddaughter", answers: ["mi nieta"] },
-      { en: "my nephew", answers: ["mi sobrino"] },
-      { en: "my niece", answers: ["mi sobrina"] },
-      { en: "my brother-in-law", answers: ["mi cuñado"] }
+      { en:"engaged", answers:["comprometido","prometido"] },
+      { en:"fiancé", answers:["prometido"] },
+      { en:"fiancée", answers:["prometida"] },
+      { en:"to propose", answers:["pedir matrimonio","proponer matrimonio"] },
+      { en:"to break up", answers:["romper"] },
+      { en:"to reconcile", answers:["reconciliarse"] },
+      { en:"to trust", answers:["confiar"] },
+      { en:"to respect", answers:["respetar"] },
+      { en:"to argue with", answers:["discutir con"] },
+      { en:"to forgive", answers:["perdonar"] },
+      { en:"to be close", answers:["ser cercano"] },
+      { en:"to be related", answers:["estar emparentado"] }
     ],
     6: [
-      { en: "ancestor", answers: ["antepasado"] },
-      { en: "descendant", answers: ["descendiente"] },
-      { en: "adopted (child)", answers: ["adoptado", "adoptada"] },
-      { en: "adoptive parents", answers: ["padres adoptivos", "los padres adoptivos"] },
-      { en: "to adopt", answers: ["adoptar"] },
-      { en: "to raise (children)", answers: ["criar"] },
-      { en: "to take care of", answers: ["cuidar"] },
-      { en: "to support (family)", answers: ["apoyar"] },
-      { en: "relationship", answers: ["relación"] },
-      { en: "family member", answers: ["miembro de la familia"] },
-      { en: "to get married", answers: ["casarse"] },
-      { en: "to divorce", answers: ["divorciarse"] },
-      { en: "to be born", answers: ["nacer"] },
-      { en: "to die", answers: ["morir"] },
-      { en: "to grow up", answers: ["crecer"] }
+      { en:"in-laws", answers:["suegros"] },
+      { en:"mother-in-law", answers:["suegra"] },
+      { en:"father-in-law", answers:["suegro"] },
+      { en:"brother-in-law", answers:["cuñado"] },
+      { en:"sister-in-law", answers:["cuñada"] },
+      { en:"godmother", answers:["madrina"] },
+      { en:"godfather", answers:["padrino"] },
+      { en:"to adopt", answers:["adoptar"] },
+      { en:"adoption", answers:["adopción"] },
+      { en:"to have a baby", answers:["tener un bebé"] },
+      { en:"pregnant", answers:["embarazada"] },
+      { en:"to give birth", answers:["dar a luz"] }
     ],
     7: [
-      { en: "close-knit family", answers: ["familia unida"] },
-      { en: "single-parent family", answers: ["familia monoparental"] },
-      { en: "extended family", answers: ["familia extensa"] },
-      { en: "family gathering", answers: ["reunión familiar"] },
-      { en: "family tree", answers: ["árbol genealógico"] },
-      { en: "household", answers: ["hogar"] },
-      { en: "guardian", answers: ["tutor", "tutora"] },
-      { en: "to argue", answers: ["discutir"] },
-      { en: "to get along (with)", answers: ["llevarse bien con"] },
-      { en: "to fall out (with)", answers: ["llevarse mal con"] },
-      { en: "to miss (someone)", answers: ["echar de menos"] },
-      { en: "to look after", answers: ["cuidar de"] },
-      { en: "to spend time together", answers: ["pasar tiempo juntos"] },
-      { en: "to share (chores)", answers: ["compartir"] },
-      { en: "to trust", answers: ["confiar"] }
+      { en:"childhood", answers:["infancia"] },
+      { en:"teenager", answers:["adolescente"] },
+      { en:"adult", answers:["adulto"] },
+      { en:"elderly", answers:["anciano","mayor"] },
+      { en:"generation", answers:["generación"] },
+      { en:"family tree", answers:["árbol genealógico"] },
+      { en:"to inherit", answers:["heredar"] },
+      { en:"inheritance", answers:["herencia"] },
+      { en:"to take after", answers:["parecerse a"] },
+      { en:"to resemble", answers:["parecerse a"] },
+      { en:"to care for", answers:["cuidar de"] },
+      { en:"to depend on", answers:["depender de"] }
     ],
     8: [
-      { en: "generation", answers: ["generación"] },
-      { en: "teenager", answers: ["adolescente"] },
-      { en: "adult", answers: ["adulto", "adulta"] },
-      { en: "elderly person", answers: ["persona mayor"] },
-      { en: "pregnant", answers: ["embarazada"] },
-      { en: "to become", answers: ["llegar a ser", "convertirse en"] },
-      { en: "to move in together", answers: ["irse a vivir juntos"] },
-      { en: "to separate", answers: ["separarse"] },
-      { en: "to reconcile", answers: ["reconciliarse"] },
-      { en: "to forgive", answers: ["perdonar"] },
-      { en: "responsibility", answers: ["responsabilidad"] },
-      { en: "to respect", answers: ["respetar"] },
-      { en: "to obey", answers: ["obedecer"] },
-      { en: "to advise", answers: ["aconsejar"] },
-      { en: "to argue (noun)", answers: ["discusión"] }
+      { en:"to be overprotective", answers:["ser sobreprotector"] },
+      { en:"to set rules", answers:["poner reglas","establecer reglas"] },
+      { en:"to allow", answers:["permitir"] },
+      { en:"to forbid", answers:["prohibir"] },
+      { en:"to punish", answers:["castigar"] },
+      { en:"to spoil (a child)", answers:["malcriar","mimar"] },
+      { en:"to behave", answers:["portarse"] },
+      { en:"to obey", answers:["obedecer"] },
+      { en:"to be grounded", answers:["estar castigado"] },
+      { en:"to argue (noun)", answers:["discusión"] },
+      { en:"to reconcile (noun)", answers:["reconciliación"] },
+      { en:"to compromise", answers:["llegar a un acuerdo","comprometerse"] }
     ],
     9: [
-      { en: "to support financially", answers: ["mantener"] },
-      { en: "to provide for", answers: ["proveer", "mantener"] },
-      { en: "inheritance", answers: ["herencia"] },
-      { en: "to inherit", answers: ["heredar"] },
-      { en: "to bring up (children)", answers: ["educar", "criar"] },
-      { en: "to attend (a wedding)", answers: ["asistir a"] },
-      { en: "wedding", answers: ["boda"] },
-      { en: "anniversary", answers: ["aniversario"] },
-      { en: "engagement", answers: ["compromiso"] },
-      { en: "to propose (marriage)", answers: ["pedir matrimonio"] },
-      { en: "to introduce (someone)", answers: ["presentar"] },
-      { en: "to take care of (formal)", answers: ["hacerse cargo de"] },
-      { en: "to depend on", answers: ["depender de"] },
-      { en: "to be proud of", answers: ["estar orgulloso de", "estar orgullosa de"] },
-      { en: "to be worried about", answers: ["estar preocupado por", "estar preocupada por"] }
+      { en:"domestic violence", answers:["violencia doméstica"] },
+      { en:"to report", answers:["denunciar"] },
+      { en:"support network", answers:["red de apoyo"] },
+      { en:"to seek help", answers:["buscar ayuda"] },
+      { en:"to cope", answers:["afrontar"] },
+      { en:"to overcome", answers:["superar"] },
+      { en:"to be independent", answers:["ser independiente"] },
+      { en:"to move out", answers:["mudarse","irse de casa"] },
+      { en:"to move in", answers:["mudarse","instalarse"] },
+      { en:"to take responsibility", answers:["asumir la responsabilidad"] },
+      { en:"to set boundaries", answers:["poner límites","establecer límites"] },
+      { en:"mutual respect", answers:["respeto mutuo"] }
     ],
     10: [
-      { en: "to have a close relationship", answers: ["tener una relación cercana"] },
-      { en: "to have a strained relationship", answers: ["tener una relación tensa"] },
-      { en: "to set boundaries", answers: ["poner límites"] },
-      { en: "to compromise", answers: ["llegar a un acuerdo"] },
-      { en: "to take responsibility", answers: ["asumir la responsabilidad"] },
-      { en: "to be responsible for", answers: ["ser responsable de"] },
-      { en: "to rely on", answers: ["contar con"] },
-      { en: "to cope with", answers: ["afrontar"] },
-      { en: "to overcome", answers: ["superar"] },
-      { en: "to maintain (a relationship)", answers: ["mantener"] },
-      { en: "mutual respect", answers: ["respeto mutuo"] },
-      { en: "trust", answers: ["confianza"] },
-      { en: "well-being", answers: ["bienestar"] },
-      { en: "to be supportive", answers: ["ser comprensivo", "ser comprensiva"] },
-      { en: "to have empathy", answers: ["tener empatía"] }
+      { en:"family breakdown", answers:["ruptura familiar"] },
+      { en:"dysfunctional family", answers:["familia disfuncional"] },
+      { en:"to mediate", answers:["mediar"] },
+      { en:"mediation", answers:["mediación"] },
+      { en:"to foster", answers:["acoger"] },
+      { en:"foster family", answers:["familia de acogida"] },
+      { en:"to be estranged", answers:["estar distanciado"] },
+      { en:"to reconcile (formal)", answers:["reconciliarse"] },
+      { en:"to maintain contact", answers:["mantener el contacto"] },
+      { en:"to cut ties", answers:["romper lazos"] },
+      { en:"to provide for", answers:["proveer","mantener"] },
+      { en:"to be supportive", answers:["apoyar","ser comprensivo"] }
     ]
   };
 
   // ===================== Normalisation =====================
   function norm(s){
     let t = (s || "").trim().toLowerCase();
-    t = t.replace(/ñ/g, "n");       // allow ñ ≡ n
+    t = t.replace(/ñ/g, "n");
     t = t.replace(/\s+/g, " ");
     t = t.replace(/^[¿¡"“”'().,;:]+|[¿¡"“”'().,;:]+$/g, "");
     return t;
@@ -232,7 +211,6 @@
     return answers.some(a => norm(a) === u);
   }
 
-  // ===================== TTS =====================
   function speak(text, lang){
     try{
       if(!("speechSynthesis" in window)) return;
@@ -243,7 +221,6 @@
     }catch{}
   }
 
-  // ===================== Global reads tokens =====================
   const clampReads = n => Math.max(0, Math.min(GLOBAL_READS_MAX, n|0));
   function getGlobalReads(){
     const v = localStorage.getItem(GLOBAL_READS_KEY);
@@ -264,7 +241,6 @@
     if (pill) pill.textContent = `${now}/${GLOBAL_READS_MAX}`;
   }
 
-  // ===================== Best / unlocks =====================
   function getBest(mode, lvl){
     const v = localStorage.getItem(bestKey(mode,lvl));
     const n = v == null ? null : parseInt(v,10);
@@ -282,7 +258,6 @@
     return prev != null && (need == null || prev <= need);
   }
 
-  // ===================== Seeded same-10 selection =====================
   function xmur3(str){
     let h = 1779033703 ^ str.length;
     for (let i=0; i<str.length; i++){
@@ -320,15 +295,7 @@
     return out;
   }
 
-  // ===================== SHORT Result Code =====================
-  // Example: 07P-4K02F-91QH
-  // LL = level (2 digits)
-  // M  = mode letter: C classic, V survival, P sprint, T team
-  // FF = match fingerprint (2 base36)
-  // SSS = score base36 (3)
-  // C = correct base36 (1)
-  // W = wrong base36 (1)
-  // CC = checksum base36 (2)
+  // Short code (same style as Connections)
   function b36(n){ return Math.max(0, n|0).toString(36).toUpperCase(); }
   function b36pad(n, len){ return b36(n).padStart(len, "0"); }
   function simpleHash32(str){
@@ -356,7 +323,7 @@
     return "classic";
   }
   function matchFinger(matchCode){
-    const h = simpleHash32((matchCode || "") + "|MF|FAMILY_FINAL1");
+    const h = simpleHash32((matchCode || "") + "|MF|FAMILY_BRIGHT1");
     const v = h % (36*36);
     return b36pad(v, 2);
   }
@@ -369,8 +336,9 @@
     const W = b36pad(wrong, 1).slice(-1);
 
     const body = `${LL}${M}-${FF}${SSS}-${C}${W}`;
-    const sigNum = simpleHash32(body + "|SIG|TURBO_FAMILY_FINAL1") % (36*36);
+    const sigNum = simpleHash32(body + "|SIG|TURBO_FAMILY_BRIGHT1") % (36*36);
     const CC = b36pad(sigNum, 2);
+
     return `${body}${CC}`;
   }
   function parseShortResultCode(code){
@@ -379,11 +347,16 @@
       if (!/^\d{2}[CVPT]-[0-9A-Z]{5}-[0-9A-Z]{4}$/.test(s)){
         return { ok:false, error:"Invalid short code format." };
       }
+
       const body = s.slice(0, -2);
       const CC   = s.slice(-2);
-      const sigNum = simpleHash32(body + "|SIG|TURBO_FAMILY_FINAL1") % (36*36);
+
+      const sigNum = simpleHash32(body + "|SIG|TURBO_FAMILY_BRIGHT1") % (36*36);
       const expected = b36pad(sigNum, 2);
-      if (CC !== expected) return { ok:false, error:"Checksum mismatch (typo likely)." };
+
+      if (CC !== expected){
+        return { ok:false, error:"Checksum mismatch (typo likely)." };
+      }
 
       const LL = parseInt(s.slice(0,2), 10);
       const M  = modeFromLetter(s.slice(2,3));
@@ -392,16 +365,20 @@
       const C  = s.slice(10,11);
       const W  = s.slice(11,12);
 
+      const score = parseInt(SSS, 36);
+      const correct = parseInt(C, 36);
+      const wrong = parseInt(W, 36);
+
       return {
         ok:true,
         data:{
           lvl: LL,
           mode: M,
           mf: FF,
-          score: parseInt(SSS, 36),
-          correct: parseInt(C, 36),
-          wrong: parseInt(W, 36),
-          died: (M==="survival" && parseInt(W,36)>0)
+          score,
+          correct,
+          wrong,
+          died: (M==="survival" && wrong>0)
         }
       };
     }catch{
@@ -409,7 +386,7 @@
     }
   }
 
-  // ===================== Celebration =====================
+  // Celebration (works if your style.css includes it)
   function showPerfectCelebration(){
     const overlay = document.createElement("div");
     overlay.className = "tq-celebrate-overlay";
@@ -420,7 +397,7 @@
     banner.textContent = "PERFECT!";
     document.body.appendChild(banner);
 
-    const COLORS = ["#3b82f6","#22c55e","#a855f7","#f59e0b","#ef4444","#06b6d4","#84cc16"];
+    const COLORS = ["#2563eb","#22c55e","#a855f7","#f59e0b","#ef4444","#06b6d4","#84cc16"];
     const W = window.innerWidth;
 
     for (let i=0; i<120; i++){
@@ -463,27 +440,31 @@
 
   function modeChanged(){
     currentMode = canonMode($("#mode").value);
-    $("#teamSizeField").style.display = (currentMode === "team") ? "block" : "none";
+    const ts = $("#teamSizeField");
+    if (ts) ts.style.display = (currentMode === "team") ? "block" : "none";
+    setModeRulesBanner(currentMode);
   }
 
   function levelDesc(lvl){
     const map = {
       1: "Immediate family basics.",
-      2: "Extended family basics.",
-      3: "Step/half + relationship status.",
-      4: "In-laws + godfamily.",
-      5: "Generations + twins etc.",
-      6: "Family verbs (useful LC phrases).",
-      7: "Family structures + feelings.",
-      8: "Life stages + relationship dynamics.",
-      9: "Advanced relationship language.",
-      10:"High-level nuance & abstract ideas."
+      2: "Extended family + partners.",
+      3: "Modern families + key verbs.",
+      4: "Relationships + everyday family life.",
+      5: "Feelings + relationship actions.",
+      6: "In-laws + life events.",
+      7: "Generations + traits.",
+      8: "Parenting + boundaries.",
+      9: "Challenges + support language.",
+      10:"High-register / complex family topics."
     };
     return map[lvl] || "Family";
   }
 
   function renderLevels(){
     const host = $("#level-list");
+    if (!host) return;
+
     host.innerHTML = "";
 
     for (let lvl=1; lvl<=10; lvl++){
@@ -525,6 +506,7 @@
       }
     }, 200);
   }
+
   function stopTimer(){
     clearInterval(timerId);
     timerId = null;
@@ -566,19 +548,22 @@
     globalSnapshotAtStart = getGlobalReads();
     $("#reads-left").textContent = String(attemptReadsLeft());
 
-    $("#speedCap").style.display = (currentMode === "sprint") ? "block" : "none";
+    const cap = $("#speedCap");
+    if (cap) cap.style.display = (currentMode === "sprint") ? "block" : "none";
 
     $("#game-title").textContent = `Level ${lvl}`;
     $("#modeLabel").textContent = MODE_LABELS[currentMode] || currentMode;
     $("#matchLabel").textContent = currentMatchCode;
 
+    setModeRulesBanner(currentMode);
+
     const subtitleMap = {
-      classic: "Translate the family word into Spanish.",
-      survival: "Survival: one mistake = fail (but you still get full feedback).",
+      classic: "Translate the family term into Spanish.",
+      survival: "Survival: one mistake = fail. (You still get full feedback.)",
       sprint: "Sprint: 60 seconds. Auto-submits at 60s.",
       team: "Pass the device! Each question assigns Player 1…N."
     };
-    $("#game-subtitle").textContent = subtitleMap[currentMode] || "Translate the family word into Spanish.";
+    $("#game-subtitle").textContent = subtitleMap[currentMode] || "Translate into Spanish.";
 
     quiz = buildQuiz(lvl, currentMode, currentMatchCode);
 
@@ -698,13 +683,11 @@
     $("#submit").disabled = true;
     $("#submit").textContent = isAuto ? "Auto-checked" : "Checked";
 
-    // Commit global reads
     let after = clampReads(globalSnapshotAtStart - readsUsedThisRound);
     const perfect = (correct === quiz.length);
     if (perfect && after < GLOBAL_READS_MAX) after = clampReads(after + 1);
     setGlobalReads(after);
 
-    // Unlock message
     let unlockMsg = "";
     if (currentLevel < 10){
       const need = BASE_THRESH[currentLevel];
@@ -738,7 +721,7 @@
     const summary = document.createElement("div");
     summary.className = "result-summary";
     summary.innerHTML = `
-      <div class="line" style="font-size:1.35rem; font-weight:950; color: var(--text);">
+      <div class="line" style="font-size:1.35rem; font-weight:950;">
         ${died ? "💀 SURVIVAL: FAILED" : "🏁 FINAL SCORE"}: ${finalScore}s
       </div>
       <div class="line">⏱️ Time: <strong>${cappedElapsed}s</strong>${currentMode==="sprint" ? " (cap 60s)" : ""}</div>
@@ -796,10 +779,10 @@
     results.appendChild(ul);
     results.appendChild(again);
 
-    // Update menu unlocks (but keep results visible)
     renderLevels();
     $("#menu").style.display = "none";
     $("#game").style.display = "block";
+
     summary.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -811,7 +794,6 @@
     renderLevels();
   }
 
-  // ===================== Compare =====================
   function compareCodes(){
     const out = $("#compareOut");
     out.innerHTML = "";
@@ -875,9 +857,20 @@
     `;
   }
 
-  // ===================== Init =====================
   document.addEventListener("DOMContentLoaded", () => {
-    console.log("TURBO Family loaded: FAMILY_FINAL1");
+    const required = ["#mode", "#level-list", "#menu", "#game", "#questions", "#results", "#submit", "#back-button"];
+    const missing = required.filter(sel => !$(sel));
+    if (missing.length){
+      const be = $("#bootError");
+      if (be){
+        be.style.display = "block";
+        be.querySelector(".bootBody").innerHTML =
+          `<p>Missing required elements in index.html:</p><pre>${missing.join("\n")}</pre>
+           <p>Paste the full index.html I gave you so IDs match.</p>`;
+      }
+      console.error("Missing elements:", missing);
+      return;
+    }
 
     setGlobalReads(getGlobalReads());
     updateReadsPill();
