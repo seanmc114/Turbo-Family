@@ -1,15 +1,14 @@
-/* Turbo: Family — single clean script.js
+/* Turbo: Family — script.js
    - 10 levels
-   - Each level = 10 randomized questions from that level pool
+   - Each level: 10 randomized questions
    - Timed
-   - Score = timeElapsed + (30s * incorrect/blank)
-   - Local best SCORE per level shown on the level button as "Best Score: ___s"
-   - Quiet (no sounds/confetti)
+   - Score = timeElapsed + (30s × count of wrong OR blank answers)
+   - Local best SCORE per level shown as "Best Score: ___s"
+   - Quiet
 */
 
-const PENALTY_PER_WRONG = 30;
+const PENALTY_PER_WRONG_OR_BLANK = 30;
 
-// 10 levels of English prompts (family theme)
 const LEVELS = {
   1: ["mother", "father", "sister", "brother", "parents", "mum", "dad", "family", "child", "baby", "children"],
   2: ["aunt", "uncle", "cousin", "grandmother", "grandfather", "grandparents", "niece", "nephew", "relative", "twins"],
@@ -20,12 +19,11 @@ const LEVELS = {
   7: ["great-grandmother", "great-grandfather", "great-uncle", "great-aunt", "great-grandson", "great-granddaughter", "stepfamily", "household", "foster parents", "foster child"],
   8: ["extended family", "close relative", "distant relative", "second cousin", "distant cousin", "family reunion", "generation", "heritage", "lineage", "roots"],
   9: ["close-knit family", "nuclear family", "family gathering", "relatives abroad", "family branch", "blood relative", "bloodline", "forefathers", "descendants", "ancestral home"],
-  10: ["generational gap", "ancestry", "dynasty", "kinship", "to be related", "family ties", "ancestral homeland", "heritage line", "lineage", "family origin"]
+  10: ["generational gap", "ancestry", "dynasty", "kinship", "to be related", "family ties", "ancestral homeland", "heritage line", "family origin", "lineage"]
 };
 
-// English -> Spanish answers (accents matter by default)
 const TRANSLATIONS = {
-  // Level 1
+  // L1
   "mother": "madre",
   "father": "padre",
   "sister": "hermana",
@@ -38,7 +36,7 @@ const TRANSLATIONS = {
   "children": "niños",
   "baby": "bebé",
 
-  // Level 2
+  // L2
   "aunt": "tía",
   "uncle": "tío",
   "cousin": "primo",
@@ -50,7 +48,7 @@ const TRANSLATIONS = {
   "relative": "pariente",
   "twins": "gemelos",
 
-  // Level 3
+  // L3
   "stepmother": "madrastra",
   "stepfather": "padrastro",
   "stepbrother": "hermanastro",
@@ -62,7 +60,7 @@ const TRANSLATIONS = {
   "granddaughter": "nieta",
   "in-laws": "familia política",
 
-  // Level 4
+  // L4
   "husband": "esposo",
   "wife": "esposa",
   "son": "hijo",
@@ -74,7 +72,7 @@ const TRANSLATIONS = {
   "widow": "viuda",
   "widower": "viudo",
 
-  // Level 5
+  // L5
   "father-in-law": "suegro",
   "mother-in-law": "suegra",
   "brother-in-law": "cuñado",
@@ -86,7 +84,7 @@ const TRANSLATIONS = {
   "partner": "pareja",
   "couple": "pareja",
 
-  // Level 6
+  // L6
   "godfather": "padrino",
   "godmother": "madrina",
   "godson": "ahijado",
@@ -98,7 +96,7 @@ const TRANSLATIONS = {
   "adopted": "adoptado",
   "guardian": "tutor",
 
-  // Level 7
+  // L7
   "great-grandmother": "bisabuela",
   "great-grandfather": "bisabuelo",
   "great-uncle": "tío abuelo",
@@ -110,7 +108,7 @@ const TRANSLATIONS = {
   "foster parents": "padres de acogida",
   "foster child": "niño de acogida",
 
-  // Level 8
+  // L8
   "extended family": "familia extensa",
   "close relative": "pariente cercano",
   "distant relative": "pariente lejano",
@@ -122,7 +120,7 @@ const TRANSLATIONS = {
   "lineage": "linaje",
   "roots": "raíces",
 
-  // Level 9
+  // L9
   "close-knit family": "familia unida",
   "nuclear family": "familia nuclear",
   "family gathering": "reunión familiar",
@@ -134,7 +132,7 @@ const TRANSLATIONS = {
   "descendants": "descendientes",
   "ancestral home": "hogar ancestral",
 
-  // Level 10
+  // L10
   "generational gap": "brecha generacional",
   "ancestry": "ascendencia",
   "dynasty": "dinastía",
@@ -143,7 +141,8 @@ const TRANSLATIONS = {
   "family ties": "lazos familiares",
   "ancestral homeland": "patria ancestral",
   "heritage line": "línea de herencia",
-  "family origin": "origen familiar"
+  "family origin": "origen familiar",
+  "lineage": "linaje"
 };
 
 // DOM
@@ -164,18 +163,21 @@ let currentLevel = 1;
 let timer = null;
 let timeElapsed = 0;
 
+function bestKey(level) {
+  return `turboFamily_best_${level}`;
+}
+
+function normalize(s) {
+  return (s || "").trim().toLowerCase();
+}
+
 function shuffle(arr) {
-  // copy + Fisher-Yates for reliable shuffle
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
-}
-
-function bestKey(level) {
-  return `turboFamily_best_${level}`;
 }
 
 function startTimer() {
@@ -186,6 +188,18 @@ function startTimer() {
     timeElapsed += 1;
     timerEl.textContent = `Time: ${timeElapsed}s`;
   }, 1000);
+}
+
+function generateQuestions(level) {
+  questionContainer.innerHTML = "";
+  const pool = LEVELS[level] || [];
+  const selection = shuffle(pool).slice(0, 10);
+
+  selection.forEach((prompt) => {
+    const row = document.createElement("div");
+    row.innerHTML = `<label>${prompt} → </label><input type="text" data-word="${prompt}" autocomplete="off" />`;
+    questionContainer.appendChild(row);
+  });
 }
 
 function startLevel(level) {
@@ -199,40 +213,15 @@ function startLevel(level) {
   generateQuestions(level);
 }
 
-function generateQuestions(level) {
-  questionContainer.innerHTML = "";
-
-  // Pick 10 random prompts from the level pool
-  const pool = LEVELS[level] || [];
-  const selection = shuffle(pool).slice(0, 10);
-
-  selection.forEach((prompt) => {
-    const div = document.createElement("div");
-    div.className = "qrow";
-    div.innerHTML = `
-      <label>${prompt} → </label>
-      <input type="text" data-word="${prompt}" autocomplete="off" />
-    `;
-    questionContainer.appendChild(div);
-  });
-}
-
 function renderMenu() {
   levelButtons.innerHTML = "";
-
   for (let i = 1; i <= 10; i++) {
     const btn = document.createElement("button");
-
     const best = localStorage.getItem(bestKey(i));
     btn.textContent = best ? `Level ${i} — Best Score: ${best}s` : `Level ${i}`;
-
     btn.addEventListener("click", () => startLevel(i));
     levelButtons.appendChild(btn);
   }
-}
-
-function normalize(s) {
-  return (s || "").trim().toLowerCase();
 }
 
 submitBtn.addEventListener("click", () => {
@@ -241,24 +230,29 @@ submitBtn.addEventListener("click", () => {
   const inputs = questionContainer.querySelectorAll("input");
   let penalties = 0;
   let feedbackHTML = "";
+  let wrongOrBlankCount = 0;
 
   inputs.forEach((input) => {
     const word = input.dataset.word;
     const answer = normalize(input.value);
     const correct = normalize(TRANSLATIONS[word]);
 
-    // Wrong OR blank = +30s
-    if (answer && answer === correct) {
+    const isCorrect = answer && answer === correct;
+
+    if (isCorrect) {
       feedbackHTML += `<p>✅ ${word} = ${correct}</p>`;
     } else {
       feedbackHTML += `<p>❌ ${word} → ${answer || "(blank)"} (correct: ${correct})</p>`;
-      penalties += PENALTY_PER_WRONG;
+
+      // THIS is the key: this runs for EACH and ALL wrong/blank answers
+      wrongOrBlankCount += 1;
+      penalties += PENALTY_PER_WRONG_OR_BLANK; // +30 every time through here
     }
   });
 
   const totalScore = timeElapsed + penalties;
 
-  // Save best (lowest) TOTAL score
+  // Save best (lowest) TOTAL SCORE
   const key = bestKey(currentLevel);
   const bestRaw = localStorage.getItem(key);
   const bestNum = bestRaw === null ? null : Number(bestRaw);
@@ -268,7 +262,8 @@ submitBtn.addEventListener("click", () => {
   }
 
   feedbackEl.innerHTML = feedbackHTML;
-  finalTimeEl.textContent = `Your time: ${timeElapsed}s + ${penalties}s penalties = ${totalScore}s total score.`;
+  finalTimeEl.textContent =
+    `Your time: ${timeElapsed}s + (${wrongOrBlankCount} × 30s) = ${penalties}s penalties → Total Score: ${totalScore}s`;
 
   game.classList.add("hidden");
   results.classList.remove("hidden");
