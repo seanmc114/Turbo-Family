@@ -24,6 +24,8 @@ const TRANSLATIONS = {
   "family roots": "raíces familiares", "generational gap": "brecha generacional", "ancestral home": "hogar ancestral", "lineage": "linaje", "forefathers": "antepasados", "bloodline": "linaje de sangre", "family origin": "origen familiar", "dynasty": "dinastía", "heritage": "patrimonio"
 };
 
+const PENALTY_PER_WRONG = 30;
+
 const menu = document.getElementById("menu");
 const game = document.getElementById("game");
 const results = document.getElementById("results");
@@ -49,8 +51,10 @@ function startLevel(level) {
   menu.classList.add("hidden");
   results.classList.add("hidden");
   game.classList.remove("hidden");
+
   timeElapsed = 0;
   timerEl.textContent = "Time: 0s";
+
   clearInterval(timer);
   timer = setInterval(() => {
     timeElapsed++;
@@ -64,6 +68,7 @@ function generateQuestions(level) {
   questionContainer.innerHTML = "";
   const words = shuffle([...LEVELS[level]]).slice(0, 10);
   currentSet = words;
+
   words.forEach(word => {
     const div = document.createElement("div");
     div.innerHTML = `<label>${word} → </label><input data-word="${word}" type="text" />`;
@@ -73,36 +78,45 @@ function generateQuestions(level) {
 
 submitBtn.addEventListener("click", () => {
   clearInterval(timer);
+
   let penalties = 0;
   let feedbackHTML = "";
+
   const inputs = questionContainer.querySelectorAll("input");
 
   inputs.forEach(input => {
     const word = input.dataset.word;
     const answer = input.value.trim().toLowerCase();
-    const correct = TRANSLATIONS[word]?.toLowerCase() || "";
-    if (answer === correct) {
+    const correct = (TRANSLATIONS[word] || "").trim().toLowerCase();
+
+    // Incorrect OR blank = penalty
+    if (answer && answer === correct) {
       feedbackHTML += `<p>✅ ${word} = ${correct}</p>`;
     } else {
       feedbackHTML += `<p>❌ ${word} → ${answer || "(blank)"} (correct: ${correct})</p>`;
-      penalties += 5;
+      penalties += PENALTY_PER_WRONG; // +30s each incorrect/incomplete
     }
   });
 
   const total = timeElapsed + penalties;
+
   const bestKey = `turboFamily_best_${currentLevel}`;
-  const best = localStorage.getItem(bestKey);
-  if (!best || total < best) {
-    localStorage.setItem(bestKey, total);
+  const bestRaw = localStorage.getItem(bestKey);
+  const bestNum = bestRaw === null ? null : Number(bestRaw);
+
+  if (bestNum === null || Number.isNaN(bestNum) || total < bestNum) {
+    localStorage.setItem(bestKey, String(total));
   }
 
   feedbackEl.innerHTML = feedbackHTML;
   finalTimeEl.textContent = `Your time: ${timeElapsed}s + ${penalties}s penalties = ${total}s total.`;
+
   game.classList.add("hidden");
   results.classList.remove("hidden");
 });
 
 tryAgainBtn.addEventListener("click", () => startLevel(currentLevel));
+
 backBtn.addEventListener("click", () => {
   results.classList.add("hidden");
   menu.classList.remove("hidden");
@@ -121,4 +135,3 @@ function renderMenu() {
 }
 
 renderMenu();
-
