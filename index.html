@@ -1,34 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turbo: Family</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TURBO · Family</title>
+
+  <!-- cache-bust -->
+  <link rel="stylesheet" href="style.css?v=FAMILY_FINAL1" />
 </head>
 <body>
-  <div id="crest-bg"></div>
-  <div class="container">
-    <h1>Turbo: Family</h1>
-    <div id="menu">
-      <p>Translate the English family words into Spanish as fast as you can!</p>
-      <div id="level-buttons"></div>
-    </div>
+  <div class="crest" aria-hidden="true"></div>
 
-    <div id="game" class="hidden">
-      <div id="timer">Time: 0s</div>
-      <div id="question-container"></div>
-      <button id="submit-btn">Submit Answers</button>
-    </div>
+  <main class="shell">
+    <header class="header">
+      <div class="title-wrap">
+        <h1><span class="turbo">TURBO</span> · Family</h1>
+        <p class="subtitle">Translate English family words into Spanish (EN → ES)</p>
+      </div>
 
-    <div id="results" class="hidden">
-      <h2>Results</h2>
-      <div id="feedback"></div>
-      <p id="final-time"></p>
-      <button id="try-again-btn">Try Again</button>
-      <button id="back-btn">Back to Menu</button>
-    </div>
-  </div>
-  <script src="script.js"></script>
+      <div class="meta">
+        <div class="pill">
+          <span class="pill-label">Build</span>
+          <span class="pill-value">FAMILY_FINAL1</span>
+        </div>
+        <div class="pill">
+          <span class="pill-label">Spanish reads</span>
+          <span class="pill-value" id="reads-pill">7/7</span>
+        </div>
+        <div class="pill">
+          <span class="pill-label">Rule</span>
+          <span class="pill-value">+30s per wrong/blank</span>
+        </div>
+        <div class="pill">
+          <span class="pill-label">Round</span>
+          <span class="pill-value">10 prompts</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MENU -->
+    <section class="card" id="menu">
+      <div class="card-head">
+        <h2>Choose level + mode</h2>
+        <p>
+          For 2 devices: enter the same <strong>Match Code</strong> → same 10 prompts → each device produces a <strong>short Result Code</strong>.
+        </p>
+      </div>
+
+      <div class="menu-grid">
+        <div class="field">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="classic">Classic</option>
+            <option value="survival">Survival</option>
+            <option value="sprint">Sprint (60s)</option>
+            <option value="team">Team Relay</option>
+          </select>
+          <div class="help">If you don’t see Survival/Sprint/Team Relay, your browser is showing an old cached page.</div>
+        </div>
+
+        <div class="field">
+          <label for="matchCode">Match Code (same prompts across devices)</label>
+          <div class="row">
+            <input id="matchCode" type="text" placeholder="e.g. 4F7K2A" maxlength="12" autocomplete="off" />
+            <button class="btn ghost" id="genCode" type="button">Generate</button>
+          </div>
+          <div class="help">Leave blank for solo random. For competitions, use the same code on both devices.</div>
+        </div>
+
+        <div class="field" id="teamSizeField" style="display:none;">
+          <label for="teamSize">Team size</label>
+          <input id="teamSize" type="number" min="2" max="8" value="4" />
+          <div class="help">Questions assign Player 1…N cycling.</div>
+        </div>
+      </div>
+
+      <div class="levels" id="level-list"></div>
+
+      <div class="card-foot">
+        <div class="hint">
+          Tip: 🔈 reads EN prompt · 🔊 reads ES target (limited tokens per attempt). Accents required; capitals ignored; ñ counts as n.
+        </div>
+      </div>
+    </section>
+
+    <!-- GAME -->
+    <section class="card" id="game" style="display:none;">
+      <div class="card-head game-head">
+        <div>
+          <h2 id="game-title">Level</h2>
+          <p class="muted" id="game-subtitle">Translate the family word into Spanish.</p>
+          <div class="smallline">Mode: <strong id="modeLabel">—</strong> · Match Code: <strong id="matchLabel">—</strong></div>
+        </div>
+
+        <div class="timer-wrap">
+          <div id="timer" class="timer">Time: 0s</div>
+          <div class="reads-small">Spanish reads left (this attempt): <strong id="reads-left">7</strong></div>
+          <div class="reads-small" id="speedCap" style="display:none;">Sprint cap: <strong>60s</strong> (auto-submit)</div>
+        </div>
+      </div>
+
+      <div id="questions" class="questions"></div>
+
+      <div class="controls">
+        <button id="submit" class="btn primary" type="button">Finish & Check</button>
+        <button id="back-button" class="btn ghost" type="button">Back to Menu</button>
+      </div>
+
+      <div id="results" class="results"></div>
+    </section>
+
+    <!-- COMPARE -->
+    <section class="card" id="compare">
+      <div class="card-head">
+        <h2>Compare two Result Codes</h2>
+        <p>Paste two <strong>short</strong> Result Codes. It checks same level + mode + match fingerprint, then declares a winner.</p>
+      </div>
+
+      <div class="compare-grid">
+        <div class="field">
+          <label for="codeA">Player A Result Code</label>
+          <textarea id="codeA" rows="3" placeholder="e.g. 03P-4K02F-91QH"></textarea>
+        </div>
+        <div class="field">
+          <label for="codeB">Player B Result Code</label>
+          <textarea id="codeB" rows="3" placeholder="e.g. 03P-4K02F-91QH"></textarea>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn primary" id="compareBtn" type="button">Compare</button>
+        <button class="btn ghost" id="clearCompare" type="button">Clear</button>
+      </div>
+
+      <div id="compareOut" class="compare-out"></div>
+    </section>
+  </main>
+
+  <!-- cache-bust -->
+  <script src="script.js?v=FAMILY_FINAL1"></script>
 </body>
 </html>
